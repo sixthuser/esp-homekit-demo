@@ -41,7 +41,7 @@ const int relay_gpio = 12;
 // The GPIO pin that is connected to the LED on the Sonoff Basic.
 const int led_gpio = 13;
 // The GPIO pin that is oconnected to the button on the Sonoff Basic.
-const int button_gpio = 0;
+//const int button_gpio = 0;	
 
 void switch_on_callback(homekit_characteristic_t *_ch, homekit_value_t on, void *context);
 void button_callback(uint8_t gpio, button_event_t event);
@@ -104,10 +104,10 @@ void switch_on_callback(homekit_characteristic_t *_ch, homekit_value_t on, void 
 
 void button_callback(uint8_t gpio, button_event_t event) {
     switch (event) {
-        case button_event_single_press:
-            printf("Toggling relay\n");
+        case button_event_single_press:         
             switch_on.value.bool_value = !switch_on.value.bool_value;
-            relay_write(switch_on.value.bool_value);
+	    printf("Toggling relay is %d\n",switch_on.value.bool_value);	
+	    relay_write(switch_on.value.bool_value);
             homekit_characteristic_notify(&switch_on, switch_on.value);
             break;
         case button_event_long_press:
@@ -117,6 +117,8 @@ void button_callback(uint8_t gpio, button_event_t event) {
             printf("Unknown button event: %d\n", event);
     }
 }
+
+
 
 void switch_identify_task(void *_args) {
     // We identify the Sonoff by Flashing it's LED.
@@ -187,6 +189,7 @@ void create_accessory_name() {
 }
 
 void user_init(void) {
+   
     uart_set_baud(0, 115200);
 
     create_accessory_name();
@@ -194,7 +197,11 @@ void user_init(void) {
     wifi_config_init("sonoff-switch", NULL, on_wifi_ready);
     gpio_init();
 
-    if (button_create(button_gpio, 0, 4000, button_callback)) {
+    if (button_create(button_gpio, 0, 400, button_callback)) {
         printf("Failed to initialize button\n");
+    }
+    else 
+    {//	printf("read_button_task no init\n");
+	xTaskCreate(read_button_task, "read_button_task_tag", 256, NULL, 2, NULL);
     }
 }
