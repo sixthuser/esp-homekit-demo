@@ -2,24 +2,7 @@
 #include <esplibs/libmain.h>
 #include "button.h"
 
-typedef struct _button {
-    uint8_t gpio_num;
-    button_callback_fn callback;
-
-    uint16_t debounce_time;
-    uint16_t long_press_time;
-
-    bool pressed_value;
-
-    uint32_t last_press_time;
-    uint32_t last_event_time;
-
-    struct _button *next;
-} button_t;
-
-
 button_t *buttons = NULL;
-
 
 static button_t *button_find_by_gpio(const uint8_t gpio_num) {
     button_t *button = buttons;
@@ -29,16 +12,34 @@ static button_t *button_find_by_gpio(const uint8_t gpio_num) {
     return button;
 }
 
-
 void button_intr_callback(uint8_t gpio) {
     button_t *button = button_find_by_gpio(gpio);
     if (!button)
         return;
 
-    uint32_t now = xTaskGetTickCountFromISR();
+	uint32_t now = xTaskGetTickCountFromISR();
+	if (gpio_read(button->gpio_num) == button->pressed_value)	//button is pressed
+	{	button->once_press = 1;		
+		button->last_press_time = now;		
+	}
+	else	
+	{	if(button->once_press == 1)
+		{	if((now - button->last_press_time) * portTICK_PERIOD_MS > button->debounce_time)
+			{	button->once_press = 0;
+				if((now - button->last_press_time) * portTICK_PERIOD_MS > button->long_press_time) 
+				{	button->callback(button->gpio_num, button_event_long_press);
+				}
+				else 
+				{	button->callback(button->gpio_num, button_event_single_press);
+				}	
+			}
+		}
+		button->last_press_time = now;
+	}
+    
+/*     uint32_t now = xTaskGetTickCountFromISR();
     if ((now - button->last_event_time)*portTICK_PERIOD_MS < button->debounce_time) {
         // debounce time, ignore events
-        button->last_press_time = 0;
         return;
     }
     button->last_event_time = now;
@@ -48,21 +49,40 @@ void button_intr_callback(uint8_t gpio) {
     } else {
         // The button is released. Handle the use cases.
         if ((now - button->last_press_time) * portTICK_PERIOD_MS > button->long_press_time) {
-         	if (button->last_press_time > 0)
-            	{
-            	button->callback(button->gpio_num, button_event_long_press);
-            	button->last_press_time = 0;
-            	}
+            button->callback(button->gpio_num, button_event_long_press);
         } else {
-            if (button->last_press_time > 0)
-            	{
-            	button->callback(button->gpio_num, button_event_single_press);
-            	button->last_press_time = 0;
-            	}
+            button->callback(button->gpio_num, button_event_single_press);
         }
-    }
+    }	 */
 }
-
+	 
+void read_button_task(void *_args) 
+{
+	button_t *button = button_find_by_gpio(button_gpio);
+	printf("read button task start!\n");
+	while (1) 
+	{		
+		if (gpio_read(button->gpio_num) == button->pressed_value)	//button is pressed
+		{	if(button->last_press_time <  button->long_press_time) button->last_press_time ++;
+			if(button->last_press_time > button->debounce_time)
+			{	button->once_press = 1;			
+			}
+		}
+		else	
+		{	if(button->once_press == 1)
+			{	if(button->last_press_time >= button->long_press_time)
+				{	button->callback(button->gpio_num, button_event_long_press);			
+				}
+				else button->callback(button->gpio_num, button_event_single_press);
+			}
+			button->once_press = 0;	
+			button->last_press_time = 0;
+		}
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+	}
+	printf("read button task delete!\n");
+}
+	 
 int button_create(const uint8_t gpio_num, bool pressed_value, uint16_t long_press_time, button_callback_fn callback) {
     button_t *button = button_find_by_gpio(gpio_num);
     if (button)
@@ -73,20 +93,21 @@ int button_create(const uint8_t gpio_num, bool pressed_value, uint16_t long_pres
     button->gpio_num = gpio_num;
     button->callback = callback;
     button->pressed_value = pressed_value;
+    button->once_press = 0;
 
     // times in milliseconds
-    button->debounce_time = 50;
+    button->debounce_time = 5;
     button->long_press_time = long_press_time;
 
     uint32_t now = xTaskGetTickCountFromISR();
-    button->last_event_time = now;
+    button->last_event_time = 0;
     button->last_press_time = 0;
 
     button->next = buttons;
     buttons = button;
 
     gpio_set_pullup(button->gpio_num, true, true);
-    gpio_set_interrupt(button->gpio_num, GPIO_INTTYPE_EDGE_ANY, button_intr_callback);
+//    gpio_set_interrupt(button->gpio_num, GPIO_INTTYPE_EDGE_ANY, button_intr_callback);
 
     return 0;
 }
