@@ -11,33 +11,12 @@ static button_t *button_find_by_gpio(const uint8_t gpio_num) {
 
     return button;
 }
-
+/*
 void button_intr_callback(uint8_t gpio) {
     button_t *button = button_find_by_gpio(gpio);
     if (!button)
-        return;
-
-	uint32_t now = xTaskGetTickCountFromISR();
-	if (gpio_read(button->gpio_num) == button->pressed_value)	//button is pressed
-	{	button->once_press = 1;		
-		button->last_press_time = now;		
-	}
-	else	
-	{	if(button->once_press == 1)
-		{	if((now - button->last_press_time) * portTICK_PERIOD_MS > button->debounce_time)
-			{	button->once_press = 0;
-				if((now - button->last_press_time) * portTICK_PERIOD_MS > button->long_press_time) 
-				{	button->callback(button->gpio_num, button_event_long_press);
-				}
-				else 
-				{	button->callback(button->gpio_num, button_event_single_press);
-				}	
-			}
-		}
-		button->last_press_time = now;
-	}
-    
-/*     uint32_t now = xTaskGetTickCountFromISR();
+        return;    
+     uint32_t now = xTaskGetTickCountFromISR();
     if ((now - button->last_event_time)*portTICK_PERIOD_MS < button->debounce_time) {
         // debounce time, ignore events
         return;
@@ -53,8 +32,8 @@ void button_intr_callback(uint8_t gpio) {
         } else {
             button->callback(button->gpio_num, button_event_single_press);
         }
-    }	 */
-}
+    }	 
+}	*/
 	 
 void read_button_task(void *_args) 
 {
